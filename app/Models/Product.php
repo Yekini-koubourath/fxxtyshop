@@ -27,10 +27,10 @@ class Product extends Model
         return $query->where('is_active', true);
     }
 
-    public function getImageUrlAttribute(): string
-    {
-        return $this->image
-            ? asset('storage/'.$this->image)
-            : asset('images/no-image.svg');
-    }
+ public function getImageUrlAttribute(): string
+{
+    return $this->image
+        ? asset($this->image)
+        : asset('images/no-image.svg');
+}
 }

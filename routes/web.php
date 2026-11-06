@@ -51,4 +51,5 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('orders/{order}', [OrderController::class, 'destroy'])->name('orders.destroy');
 });
 Route::get('/test-upload', fn () => 'upload_max_filesize='.ini_get('upload_max_filesize').' | post_max_size='.ini_get('post_max_size').' | php.ini='.php_ini_loaded_file().' | tmp='.sys_get_temp_dir());
+Route::get('/test-upload', fn () => 'php.ini='.php_ini_loaded_file().' | upload_tmp_dir='.ini_get('upload_tmp_dir').' | sys_temp='.sys_get_temp_dir().' | max='.ini_get('upload_max_filesize'));
 require __DIR__.'/auth.php';

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -19,8 +19,44 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'price'       => 'required|integer|min:0',
             'stock'       => 'required|integer|min:0',
-          'image'       => 'nullable|image|max:5120',
+            'image_data'  => 'nullable|string',
         ];
+    }
+
+    // Enregistre l'image reçue sous forme de texte (data URL) dans public/uploads/products
+    private function saveImageData(?string $dataUrl): ?string
+    {
+        if (! $dataUrl) {
+            return null;
+        }
+
+        if (! preg_match('#^data:image/(jpeg|png|webp);base64,#', $dataUrl, $m)) {
+            throw ValidationException::withMessages(['image_data' => 'Format d\'image invalide (JPG, PNG ou WebP).']);
+        }
+
+        $binary = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
+
+        if ($binary === false || strlen($binary) > 5 * 1024 * 1024 || @getimagesizefromstring($binary) === false) {
+            throw ValidationException::withMessages(['image_data' => 'Image invalide ou trop lourde.']);
+        }
+
+        $dir = public_path('uploads/products');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $extension = $m[1] === 'jpeg' ? 'jpg' : $m[1];
+        $name = uniqid('p_').'.'.$extension;
+        file_put_contents($dir.'/'.$name, $binary);
+
+        return 'uploads/products/'.$name;
+    }
+
+    private function deleteImage(?string $path): void
+    {
+        if ($path && file_exists(public_path($path))) {
+            @unlink(public_path($path));
+        }
     }
 
     public function index(Request $request)
@@ -42,18 +78,22 @@ class ProductController extends Controller
         ]);
     }
 
-public function store(Request $request)
-{
-    dd([
-        'methode' => $request->method(),
-        'image_recue' => $request->hasFile('image'),
-        'fichier_existe' => $request->file('image') !== null,
-        'image_valide' => $request->file('image')?->isValid(),
-        'erreur_upload' => $request->file('image')?->getError(),
-        'message_erreur' => $request->file('image')?->getErrorMessage(),
-        'nom_image' => $request->file('image')?->getClientOriginalName(),
-    ]);
-}
+    public function store(Request $request)
+    {
+        $data = $request->validate($this->rules());
+        $data['is_active'] = $request->boolean('is_active');
+
+        $path = $this->saveImageData($data['image_data'] ?? null);
+        unset($data['image_data']);
+
+        if ($path) {
+            $data['image'] = $path;
+        }
+
+        Product::create($data);
+
+        return redirect()->route('admin.products.index')->with('success', 'Produit créé avec succès.');
+    }
 
     public function edit(Product $product)
     {
@@ -68,13 +108,12 @@ public function store(Request $request)
         $data = $request->validate($this->rules());
         $data['is_active'] = $request->boolean('is_active');
 
-        if ($request->hasFile('image')) {
-            if ($product->image) {
-                Storage::disk('public')->delete($product->image);
-            }
-            $data['image'] = $request->file('image')->store('products', 'public');
-        } else {
-            unset($data['image']);
+        $path = $this->saveImageData($data['image_data'] ?? null);
+        unset($data['image_data']);
+
+        if ($path) {
+            $this->deleteImage($product->image);
+            $data['image'] = $path;
         }
 
         $product->update($data);
@@ -84,10 +123,7 @@ public function store(Request $request)
 
     public function destroy(Product $product)
     {
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
-        }
-
+        $this->deleteImage($product->image);
         $product->delete();
 
         return redirect()->route('admin.products.index')->with('success', 'Produit supprimé.');

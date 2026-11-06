@@ -50,16 +50,28 @@
                       class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200">{{ old('description', $product->description) }}</textarea>
             @error('description') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
+<div>
+    <label for="image-picker" class="mb-1 block text-sm font-medium text-slate-700">Image du produit</label>
 
-        <div>
-            <label for="image" class="mb-1 block text-sm font-medium text-slate-700">Image (max 2 Mo)</label>
-            @if ($product->exists && $product->image)
-                <img src="{{ $product->image_url }}" alt="" class="mb-2 h-24 w-24 rounded-lg object-cover">
-            @endif
-            <input id="image" type="file" name="image" accept="image/*"
-                   class="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-white hover:file:bg-slate-700">
-            @error('image') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-        </div>
+    @php
+        $previewSrc = old('image_data') ?: ($product->exists && $product->image ? $product->image_url : '');
+    @endphp
+
+    <img id="image-preview" alt=""
+         class="mb-2 h-24 w-24 rounded-lg object-cover {{ $previewSrc ? '' : 'hidden' }}"
+         @if ($previewSrc) src="{{ $previewSrc }}" @endif>
+
+    <input type="hidden" name="image_data" id="image_data" value="{{ old('image_data') }}">
+
+    <input id="image-picker" type="file" accept="image/*"
+           class="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-white hover:file:bg-slate-700">
+
+    <p class="mt-1 text-xs text-slate-400">JPG, PNG ou WebP. L'image est réduite automatiquement avant l'envoi.</p>
+
+    @error('image_data')
+        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+    @enderror
+</div>
 
         <label class="flex items-center gap-2 text-sm">
             <input type="checkbox" name="is_active" value="1" class="rounded border-slate-300 text-orange-500 focus:ring-orange-300"
@@ -72,4 +84,45 @@
             <a href="{{ route('admin.products.index') }}" class="rounded-lg border border-slate-300 px-6 py-2 text-slate-600 hover:bg-slate-50">Annuler</a>
         </div>
     </form>
+    <script>
+(function () {
+    var input = document.getElementById('image-picker');
+    var hidden = document.getElementById('image_data');
+    var preview = document.getElementById('image-preview');
+    if (!input) return;
+
+    input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            alert("Cette image n'a pas pu être lue. Essayez un fichier JPG ou PNG.");
+        };
+
+        img.onload = function () {
+            var max = 1200;
+            var ratio = Math.min(1, max / Math.max(img.width, img.height));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * ratio);
+            canvas.height = Math.round(img.height * ratio);
+
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            hidden.value = canvas.toDataURL('image/jpeg', 0.82);
+            preview.src = hidden.value;
+            preview.classList.remove('hidden');
+            URL.revokeObjectURL(url);
+        };
+
+        img.src = url;
+    });
+})();
+</script>
 @endsection
