@@ -17,8 +17,9 @@ FROM php:8.3-apache
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
-    libpq-dev \
+       libpq-dev \
     libzip-dev \
+    libonig-dev \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
